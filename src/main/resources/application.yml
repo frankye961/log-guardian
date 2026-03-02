@@ -1,0 +1,62 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: logguardian
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/logguardian}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logguardian:
+  k8s:
+    namespace: ${LOGGUARDIAN_NAMESPACE:aiops-demo}
+    labelSelector: ${LOGGUARDIAN_LABEL_SELECTOR:app in (payment-service,order-service)}
+    includeContainers: ${LOGGUARDIAN_INCLUDE_CONTAINERS:}   # comma-separated (optional)
+    excludeContainers: ${LOGGUARDIAN_EXCLUDE_CONTAINERS:istio-proxy} # comma-separated
+    sinceSecondsOnStart: ${LOGGUARDIAN_SINCE_SECONDS_ON_START:120}
+    resumeWindowSeconds: ${LOGGUARDIAN_RESUME_WINDOW_SECONDS:60}
+    maxConcurrentStreams: ${LOGGUARDIAN_MAX_CONCURRENT_STREAMS:50}
+    reconnectBackoffMs: ${LOGGUARDIAN_RECONNECT_BACKOFF_MS:500,1000,2000,5000}
+
+  ingest:
+    multiline:
+      idleFlushMs: ${LOGGUARDIAN_MULTILINE_IDLE_FLUSH_MS:800}
+      maxEntryBytes: ${LOGGUARDIAN_MULTILINE_MAX_ENTRY_BYTES:131072} # 128KiB
+    limits:
+      maxLineBytes: ${LOGGUARDIAN_MAX_LINE_BYTES:32768} # 32KiB
+
+  dedupe:
+    ttlSeconds: ${LOGGUARDIAN_DEDUPE_TTL_SECONDS:600}
+    maxSize: ${LOGGUARDIAN_DEDUPE_MAX_SIZE:200000}
+
+  detection:
+    windowSeconds: ${LOGGUARDIAN_WINDOW_SECONDS:60}
+    baselineMinutes: ${LOGGUARDIAN_BASELINE_MINUTES:60}
+    spikeFactor: ${LOGGUARDIAN_SPIKE_FACTOR:10.0}
+    minCountThreshold: ${LOGGUARDIAN_MIN_COUNT_THRESHOLD:20}
+    noveltyLookbackHours: ${LOGGUARDIAN_NOVELTY_LOOKBACK_HOURS:24}
+
+  ai:
+    enabled: ${LOGGUARDIAN_AI_ENABLED:false}
+    provider: ${LOGGUARDIAN_AI_PROVIDER:openai}     # openai|claude
+    model: ${LOGGUARDIAN_AI_MODEL:gpt-4o-mini}
+    apiKey: ${LOGGUARDIAN_AI_API_KEY:}
+    monitorIntervalSeconds: ${LOGGUARDIAN_AI_MONITOR_INTERVAL_SECONDS:60}
+    maxFingerprints: ${LOGGUARDIAN_AI_MAX_FINGERPRINTS:5}
+    maxSamplesPerFingerprint: ${LOGGUARDIAN_AI_MAX_SAMPLES_PER_FP:3}
+docker:
+  host: unix:///home/franek/.docker/desktop/docker.sock
