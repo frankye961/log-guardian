@@ -9,7 +9,6 @@ import java.util.List;
 
 @Getter
 @Setter
-@AllArgsConstructor
 public class ContainerRulesetRequest {
     @NonNull
     private String containerId;
