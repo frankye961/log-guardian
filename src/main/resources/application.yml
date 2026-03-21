@@ -45,7 +45,7 @@ logguardian:
       Format the response as plain text.
 
 docker:
-  host: unix:///home/franek/.docker/desktop/docker.sock
+  host: ${DOCKER_HOST}
 
 logging:
   level:
