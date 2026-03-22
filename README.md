@@ -15,7 +15,8 @@ What works now:
 - Fingerprint generation for repeated log patterns
 - Count-based anomaly detection on `ERROR` events
 - Optional AI summarization through Spring AI and OpenAI
-- Unit tests for the CLI runner, aggregator, parser, counter, anomaly detector, and utility behavior
+- Plain-text and HTML email notifications for detected anomalies
+- Unit and integration tests for anomaly email delivery and formatting
 
 What is present but not finished:
 
@@ -35,6 +36,7 @@ The runtime flow is linear:
 7. Windowed counting
 8. Threshold-based anomaly detection
 9. Optional AI summary generation
+10. Optional email notification delivery
 
 ### CLI Layer
 
@@ -81,6 +83,26 @@ For each incoming `LogLine`:
 - counts are tracked inside a configured time bucket
 - anomalies are emitted only for `ERROR` events above the configured threshold
 - if AI is enabled, the summarizer builds a prompt from configuration and calls the model
+- if email notifications are enabled, the anomaly and summary are rendered into a readable incident email and sent through Spring Mail
+
+### Email Notifications
+
+[`EmailSenderService.java`](src/main/java/com/logguardian/service/email/EmailSenderService.java) sends anomaly notifications as multipart emails.
+
+Each email includes:
+
+- a severity-aware subject line
+- the anomaly source, fingerprint, log level, count, and detection time
+- a human-readable incident explanation
+- the probable cause and suggested investigation steps
+- the original sample log line
+- both plain-text and HTML bodies for better client compatibility
+
+The email step is best-effort:
+
+- notification delivery is skipped if email notifications are disabled
+- delivery is skipped if no recipients are configured
+- SMTP failures are logged and do not stop the log stream
 
 ## Data Model
 
@@ -110,6 +132,30 @@ The project now keeps active configuration directly in [`application.yml`](src/m
 `spring.ai.openai.chat.options.model`
 
 - Chat model used by the summarizer.
+
+`spring.mail.host`
+
+- SMTP host used for notification delivery.
+
+`spring.mail.port`
+
+- SMTP port used for notification delivery.
+
+`spring.mail.username`
+
+- SMTP username.
+
+`spring.mail.password`
+
+- SMTP password.
+
+`spring.mail.properties.mail.smtp.auth`
+
+- Enables or disables SMTP authentication.
+
+`spring.mail.properties.mail.smtp.starttls.enable`
+
+- Enables STARTTLS when supported by the mail server.
 
 `logguardian.mode`
 
@@ -141,9 +187,61 @@ The project now keeps active configuration directly in [`application.yml`](src/m
 - Supported placeholders:
   `{fingerprint}`, `{level}`, `{count}`, `{sourceId}`, `{sourceName}`, `{samples}`
 
+`logguardian.notifications.email.enabled`
+
+- Enables or disables email notification delivery.
+
+`logguardian.notifications.email.from`
+
+- Optional sender address for incident emails.
+
+`logguardian.notifications.email.to`
+
+- Comma-separated recipient list for incident emails.
+
+`logguardian.notifications.email.reply-to`
+
+- Optional reply-to address for incident emails.
+
+`logguardian.notifications.email.subject-prefix`
+
+- Prefix prepended to email subjects.
+
 `docker.host`
 
 - Docker daemon endpoint.
+
+### Example Email Configuration
+
+Mailtrap:
+
+```bash
+export MAIL_HOST=sandbox.smtp.mailtrap.io
+export MAIL_PORT=587
+export MAIL_USERNAME=your-mailtrap-username
+export MAIL_PASSWORD=your-mailtrap-password
+export MAIL_SMTP_AUTH=true
+export MAIL_SMTP_STARTTLS_ENABLE=true
+export LOGGUARDIAN_EMAIL_ENABLED=true
+export LOGGUARDIAN_EMAIL_FROM=alerts@example.com
+export LOGGUARDIAN_EMAIL_TO=dev@example.com
+```
+
+smtp4dev running in Docker and exposed on host port `2525`:
+
+```bash
+export MAIL_HOST=localhost
+export MAIL_PORT=2525
+export MAIL_USERNAME=
+export MAIL_PASSWORD=
+export MAIL_SMTP_AUTH=false
+export MAIL_SMTP_STARTTLS_ENABLE=false
+export LOGGUARDIAN_EMAIL_ENABLED=true
+export LOGGUARDIAN_EMAIL_FROM=alerts@example.com
+export LOGGUARDIAN_EMAIL_TO=dev@example.com
+```
+
+If LogGuardian runs inside Docker too, `localhost` will not reach the SMTP container. Use the SMTP container or service name instead.
 
 ## Running
 
@@ -178,6 +276,14 @@ Interactive shell:
 java -jar target/logguardian-0.1.0-SNAPSHOT.jar shell
 ```
 
+For a quick anomaly-email test, lower the threshold temporarily:
+
+```bash
+export LOGGUARDIAN_MIN_COUNT_THRESHOLD=0
+```
+
+Then emit repeated lines containing `ERROR` from the tailed container.
+
 ## Tests
 
 The test suite covers the most failure-prone behaviors:
@@ -188,6 +294,8 @@ The test suite covers the most failure-prone behaviors:
 - [`FingerPrintWindowCounterTest.java`](src/test/java/com/logguardian/fingerprint/window/FingerPrintWindowCounterTest.java)
 - [`AnomalyDetectorTest.java`](src/test/java/com/logguardian/fingerprint/anomaly/AnomalyDetectorTest.java)
 - [`UtilsTest.java`](src/test/java/com/logguardian/util/UtilsTest.java)
+- [`EmailSenderServiceTest.java`](src/test/java/com/logguardian/service/email/EmailSenderServiceTest.java)
+- [`DockerLogPipelineEmailIntegrationTest.java`](src/test/java/com/logguardian/service/docker/DockerLogPipelineEmailIntegrationTest.java)
 
 ## Edge Cases
 
@@ -198,6 +306,8 @@ The test suite covers the most failure-prone behaviors:
 - Counting is bucketed, not sliding, so spikes near bucket boundaries can appear smaller.
 - Only `ERROR` events can currently raise anomalies.
 - AI summarization is best-effort and does not block the rest of the stream if the model call fails.
+- Email delivery happens only after an anomaly is detected, so normal container tailing alone will not send notifications.
+- By default, anomalies require more than `logguardian.detection.min-count-threshold` matching `ERROR` events inside the current window.
 
 ## Next Features
 
