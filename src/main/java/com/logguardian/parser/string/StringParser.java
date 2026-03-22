@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 public class StringParser implements BaseParser {
 
     private static final Pattern TIMESTAMP_PATTERN =
-            Pattern.compile("\\b(?<ts>\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{3})?)\\b");
+            Pattern.compile("\\b(?<ts>\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{3})?(?:Z|[+-]\\d{2}:?\\d{2})?)\\b");
 
     private static final Pattern ERROR_PATTERN = Pattern.compile("\\bERROR\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern WARN_PATTERN = Pattern.compile("\\bWARN(?:ING)?\\b", Pattern.CASE_INSENSITIVE);
@@ -81,10 +81,15 @@ public class StringParser implements BaseParser {
         String ts = matcher.group("ts");
 
         try {
-            // normalize comma milliseconds to dot
             ts = ts.replace(",", ".");
-            return LocalDateTime.parse(ts.replace(" ", "T"))
-                    .atZone(ZoneId.systemDefault())
+            String normalized = ts.replace(" ", "T");
+
+            if (hasExplicitOffset(normalized)) {
+                return OffsetDateTime.parse(normalized).toInstant();
+            }
+
+            return LocalDateTime.parse(normalized)
+                    .atOffset(ZoneOffset.UTC)
                     .toInstant();
         } catch (Exception e) {
             try {
@@ -93,6 +98,11 @@ public class StringParser implements BaseParser {
                 return null;
             }
         }
+    }
+
+    private boolean hasExplicitOffset(String timestamp) {
+        return timestamp.endsWith("Z")
+                || timestamp.matches(".*[+-]\\d{2}:?\\d{2}$");
     }
 
     private LogLevel detectLevel(String line) {

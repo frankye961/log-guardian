@@ -32,7 +32,7 @@ public class MultilineAggregator {
             AtomicReference<Disposable> idleFlushTask = new AtomicReference<>();
             Object monitor = new Object();
 
-            lineFlux.subscribe(
+            Disposable upstreamSubscription = lineFlux.subscribe(
                     line -> {
                         synchronized (monitor) {
                             if (!currentEntry.isEmpty() && isNewEntryStart(line.line())) {
@@ -64,7 +64,10 @@ public class MultilineAggregator {
                     }
             );
 
-            sink.onDispose(() -> cancelIdleFlush(idleFlushTask));
+            sink.onDispose(() -> {
+                cancelIdleFlush(idleFlushTask);
+                upstreamSubscription.dispose();
+            });
         });
     }
 
