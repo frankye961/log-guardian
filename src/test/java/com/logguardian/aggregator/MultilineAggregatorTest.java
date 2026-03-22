@@ -5,8 +5,11 @@ import com.logguardian.model.LogLine;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
+import reactor.test.publisher.TestPublisher;
 
 import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class MultilineAggregatorTest {
 
@@ -29,6 +32,23 @@ class MultilineAggregatorTest {
                         "Caused by: java.lang.IllegalStateException"))
                 .expectNextMatches(entry -> entry.message().equals("2026-03-21 12:00:01 INFO recovered"))
                 .verifyComplete();
+    }
+
+    @Test
+    void cancelsUpstreamSubscriptionWhenDownstreamCancels() {
+        MultilineAggregator fastAggregator = new MultilineAggregator(500, 10_000);
+        TestPublisher<LogLine> source = TestPublisher.create();
+
+        StepVerifier.create(fastAggregator.transform(source.flux()), 1)
+                .then(() -> source.next(LogLine.builder()
+                        .containerId("c-1")
+                        .receivedAt(Instant.parse("2026-03-21T12:00:00Z"))
+                        .line("2026-03-21 12:00:00 ERROR top level")
+                        .build()))
+                .thenCancel()
+                .verify();
+
+        assertThat(source.wasCancelled()).isTrue();
     }
 
 }

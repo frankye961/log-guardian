@@ -40,4 +40,18 @@ class StringParserTest {
         assertThat(event.level()).isEqualTo(LogLevel.WARN);
         assertThat(event.eventTime()).isNull();
     }
+
+    @Test
+    void keepsExplicitTimezoneOffsetsFromLogLine() {
+        LogEntry entry = new LogEntry(
+                "container-1",
+                Instant.parse("2026-03-21T12:00:05Z"),
+                "2026-03-21T14:00:00+02:00 INFO request completed"
+        );
+
+        LogEvent event = parser.parse(entry);
+
+        assertThat(event.level()).isEqualTo(LogLevel.INFO);
+        assertThat(event.eventTime()).isEqualTo(Instant.parse("2026-03-21T12:00:00Z"));
+    }
 }
