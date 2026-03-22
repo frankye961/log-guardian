@@ -205,3 +205,5 @@ The test suite covers the most failure-prone behaviors:
 - Further cleanup
 - Speed improvement
 - Vulnerabilites detector
+- Report file generation
+  
