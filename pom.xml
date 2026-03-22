@@ -77,6 +77,12 @@
             <artifactId>spring-boot-starter-data-mongodb-reactive</artifactId>
         </dependency>
 
+        <!-- Email sending -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Dedupe / caches (PoC: in-memory TTL) -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>

@@ -5,12 +5,29 @@ spring:
     web-application-type: none
   ai:
     model:
-      chat: ${MODEL_AI}
+      chat: ${MODEL_AI:}
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
           model: gpt-5-mini
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:500000}
+          timeout: ${MAIL_SMTP_TIMEOUT:500000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:500000}
 
 logguardian:
   mode: cli
@@ -43,9 +60,16 @@ logguardian:
       5. Severity (LOW, MEDIUM, HIGH)
 
       Format the response as plain text.
+  notifications:
+    email:
+      enabled: ${LOGGUARDIAN_EMAIL_ENABLED:true}
+      from: ${LOGGUARDIAN_EMAIL_FROM:warning@log-guardian.com}
+      to: ${LOGGUARDIAN_EMAIL_TO:test@example.com}
+      subject-prefix: ${LOGGUARDIAN_EMAIL_SUBJECT_PREFIX:[LogGuardian - ANOMALY DETECTED]}
+      reply-to: ${LOGGUARDIAN_EMAIL_REPLY_TO:test@example.com}
 
 docker:
-  host: ${DOCKER_HOST}
+  host: ${DOCKER_HOST:}
 
 logging:
   level:
