@@ -4,6 +4,7 @@ import com.logguardian.aggregator.MultilineAggregator;
 import com.logguardian.ai.AiIncidentSummarizer;
 import com.logguardian.ai.model.IncidentSummary;
 import com.logguardian.ai.model.IncidentSummaryRequest;
+import com.logguardian.fingerprint.anomaly.AnomalyEvent;
 import com.logguardian.fingerprint.anomaly.AnomalyDetector;
 import com.logguardian.fingerprint.generator.FingerPrintGenerator;
 import com.logguardian.fingerprint.window.CountedLogEvent;
@@ -14,6 +15,7 @@ import com.logguardian.model.LogLine;
 import com.logguardian.parser.json.JsonParser;
 import com.logguardian.parser.model.LogEvent;
 import com.logguardian.parser.string.StringParser;
+import com.logguardian.service.email.EmailSenderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +38,8 @@ public class DockerLogPipelineService {
     private final FingerPrintWindowCounter counter;
     private final AnomalyDetector detector;
     private final AiIncidentSummarizer summarizer;
+    private final EmailSenderService emailSender;
+
     @Value("${logguardian.ai.enabled:true}")
     private boolean aiEnabled;
 
@@ -46,9 +50,13 @@ public class DockerLogPipelineService {
                 .map(fingerPrintGenerator::generateFingerprint)
                 .map(this::countFingerprint)
                 .flatMap(counted -> Mono.justOrEmpty(detector.detectAnomaly(counted)))
-                .map(AiSummerizerMapper::toIncidentSummaryRequest)
-                .flatMap(this::summarizeIfEnabled)
-                .doOnNext(summary -> System.out.println("[AI INCIDENT SUMMARY] " + summary))
+                .flatMap(this::buildIncidentNotification)
+                .flatMap(notification -> Mono.fromCallable(() -> {
+                            System.out.println("Sending incident notification");
+                            emailSender.sendIncidentEmail(notification.anomaly(), notification.summary());
+                            return notification.summary();
+                        })
+                        .subscribeOn(Schedulers.boundedElastic()))
                 .doOnSubscribe(_ -> log.info("Stream started for container {}", containerId));
     }
 
@@ -68,6 +76,13 @@ public class DockerLogPipelineService {
         return stringParser.parse(entry);
     }
 
+    private Mono<IncidentNotification> buildIncidentNotification(AnomalyEvent anomaly) {
+        IncidentSummaryRequest request = AiSummerizerMapper.toIncidentSummaryRequest(anomaly);
+        return summarizeIfEnabled(request)
+                .defaultIfEmpty(IncidentSummary.empty())
+                .map(summary -> new IncidentNotification(anomaly, summary));
+    }
+
     private Mono<IncidentSummary> summarizeIfEnabled(IncidentSummaryRequest request) {
         if (!aiEnabled) {
             return Mono.empty();
@@ -75,5 +90,8 @@ public class DockerLogPipelineService {
 
         return Mono.fromCallable(() -> summarizer.summarize(request))
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private record IncidentNotification(AnomalyEvent anomaly, IncidentSummary summary) {
     }
 }
