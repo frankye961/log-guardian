@@ -1,8 +1,5 @@
 package com.logguardian.runners;
 
-import com.github.dockerjava.api.model.Container;
-import com.logguardian.service.docker.DockerContainerService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.CommandLineRunner;
@@ -10,20 +7,36 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
 
+import com.logguardian.service.runtime.LogSource;
+import com.logguardian.service.runtime.LogStreamingService;
+
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.logguardian.runners.Command.*;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "logguardian.mode", havingValue = "cli")
 public class CliRunnerService implements CommandLineRunner {
 
-    private final DockerContainerService dockerContainerService;
+    private final Map<String, LogStreamingService> servicesByRuntime;
+    private final AtomicInteger backgroundJobSequence = new AtomicInteger(0);
+    private final Map<Integer, BackgroundJob> backgroundJobs = new ConcurrentHashMap<>();
+    private volatile boolean shellSessionActive;
+
+    public CliRunnerService(List<LogStreamingService> services) {
+        this.servicesByRuntime = indexServices(services);
+    }
 
     @Override
     public void run(String... args) {
@@ -36,26 +49,9 @@ public class CliRunnerService implements CommandLineRunner {
             return 0;
         }
 
-        String command = args[0].trim().toLowerCase();
+        String firstArg = args[0].trim().toLowerCase();
 
-        switch (command) {
-            case LIST -> {
-                listContainers();
-                return 0;
-            }
-            case TAIL_ALL -> {
-                tailAllContainers();
-                return 0;
-            }
-            case TAIL_ONE -> {
-                if (args.length < 2) {
-                    System.err.println("Missing container id for tail-one command.");
-                    printHelp();
-                    return 1;
-                }
-                tailOneContainer(args[1]);
-                return 0;
-            }
+        switch (firstArg) {
             case SHELL_COMMAND -> {
                 runInteractiveShell();
                 return 0;
@@ -65,65 +61,8 @@ public class CliRunnerService implements CommandLineRunner {
                 return 0;
             }
             default -> {
-                System.err.printf("Unknown command: %s%n%n", command);
-                printHelp();
-                return 1;
+                return executeForRuntime(firstArg, Arrays.copyOfRange(args, 1, args.length));
             }
-        }
-    }
-
-    private void listContainers() {
-        List<Container> containers = dockerContainerService.getRunningContainerList();
-
-        if (containers.isEmpty()) {
-            System.out.println("No running containers found.");
-            return;
-        }
-
-        System.out.printf("%-15s %-30s %-25s%n", "CONTAINER ID", "NAME", "STATUS");
-        System.out.println("-------------------------------------------------------------------------------");
-
-        containers.stream()
-                .map(this::toRow)
-                .forEach(row -> System.out.printf(
-                        "%-15s %-30s %-25s%n",
-                        row.shortId(),
-                        row.name(),
-                        row.status()
-                ));
-    }
-
-    private void tailAllContainers() {
-        List<Container> containers = dockerContainerService.getRunningContainerList();
-        if (containers.isEmpty()) {
-            System.out.println("No running containers found.");
-            return;
-        }
-
-        List<Disposable> subscriptions = containers.stream()
-                .map(Container::getId)
-                .peek(containerId -> System.out.printf("Current container id: %s%n", containerId))
-                .map(dockerContainerService::startStream)
-                .toList();
-
-        System.out.printf("Started tailing %d running containers.%n", subscriptions.size());
-
-        try {
-            blockUntilInterrupted(subscriptions);
-        } catch (InterruptedException e) {
-            log.warn("Interrupted while waiting for containers to stream", e);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void tailOneContainer(String containerId) {
-        try {
-            System.out.printf("Started tailing container %s%n", containerId);
-            var containerStream = dockerContainerService.startStream(containerId);
-            blockUntilInterrupted(List.of(containerStream));
-        }  catch (InterruptedException e) {
-            log.error("Interrupted while waiting for containers to start!", e);
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -132,7 +71,9 @@ public class CliRunnerService implements CommandLineRunner {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             subscriptions.forEach(Disposable::dispose);
-            dockerContainerService.stopAllStreams();
+            servicesByRuntime.values().stream()
+                    .distinct()
+                    .forEach(LogStreamingService::stopAllStreams);
             latch.countDown();
         }));
 
@@ -141,95 +82,227 @@ public class CliRunnerService implements CommandLineRunner {
 
     private void runInteractiveShell() {
         Scanner scanner = new Scanner(System.in);
+        shellSessionActive = true;
 
         System.out.println(WELCOME_LINE_1);
         System.out.println(WELCOME_LINE_2);
 
-        while (true) {
-            System.out.print(BEGIN_LINE);
+        try {
+            while (true) {
+                System.out.print(BEGIN_LINE);
 
-            if (!scanner.hasNextLine()) {
-                break;
-            }
-
-            String line = scanner.nextLine().trim();
-
-            if (line.isBlank()) {
-                continue;
-            }
-
-            if (EXIT.equalsIgnoreCase(line) || QUIT.equalsIgnoreCase(line)) {
-                break;
-            }
-
-            if (HELP.equalsIgnoreCase(line)) {
-                printHelp();
-                continue;
-            }
-
-            String[] parts = line.split("\\s+");
-            String command = parts[0].toLowerCase();
-
-            switch (command) {
-                case LIST -> listContainers();
-                case TAIL_ALL -> tailAllContainers();
-                case TAIL_ONE -> {
-                    if (parts.length < 2) {
-                        System.err.println("Usage: tail-one <containerId>");
-                        continue;
-                    }
-                    tailOneContainer(parts[1]);
+                if (!scanner.hasNextLine()) {
+                    break;
                 }
-                default -> System.err.printf("Unknown command: %s%n", line);
+
+                String line = scanner.nextLine().trim();
+
+                if (line.isBlank()) {
+                    continue;
+                }
+
+                if (EXIT.equalsIgnoreCase(line) || QUIT.equalsIgnoreCase(line)) {
+                    break;
+                }
+
+                if (HELP.equalsIgnoreCase(line)) {
+                    printHelp();
+                    continue;
+                }
+
+                String[] parts = line.split("\\s+");
+                int exitCode = execute(parts);
+                if (exitCode != 0) {
+                    System.err.printf("Command failed with exit code %d%n", exitCode);
+                }
             }
+        } finally {
+            shellSessionActive = false;
+            disposeBackgroundJobs();
         }
+
         System.out.println("Bye.");
     }
 
     private void printHelp() {
         System.out.println("""
                 Usage:
-                  java -jar logguardian.jar list
-                  java -jar logguardian.jar tail-all
-                  java -jar logguardian.jar tail-one <containerId>
+                  java -jar logguardian.jar docker list
+                  java -jar logguardian.jar docker tail-all
+                  java -jar logguardian.jar docker tail-one <sourceId>
+                  java -jar logguardian.jar kub list
+                  java -jar logguardian.jar kub tail-all
+                  java -jar logguardian.jar kub tail-one <sourceId>
                   java -jar logguardian.jar shell
 
                 Commands:
-                  list                  List running containers
-                  tail-all              Start tailing all running containers
-                  tail-one <id>         Start tailing one container
+                  docker list           List running Docker containers
+                  docker tail-all       Start tailing all running Docker containers
+                  docker tail-one <id>  Start tailing one Docker container
+                  kub list              List running Kubernetes pods
+                  kub tail-all          Start tailing all running Kubernetes pods
+                  kub tail-one <id>     Start tailing one Kubernetes pod
                   shell                 Start interactive shell
                   help                  Show this help
                 """);
     }
 
-    private ContainerRow toRow(Container container) {
-        String shortId = container.getId() != null && container.getId().length() > 12
-                ? container.getId().substring(0, 12)
-                : safe(container.getId());
-
-        String name = extractName(container);
-        String status = safe(container.getStatus());
-
-        return new ContainerRow(shortId, name, status);
-    }
-
-    private String extractName(Container container) {
-        if (container.getNames() == null || container.getNames().length == 0) {
-            return UNKNOWN;
+    private int executeForRuntime(String runtimeKey, String[] args) {
+        LogStreamingService service = servicesByRuntime.get(runtimeKey);
+        if (service == null) {
+            System.err.printf("Unknown runtime: %s%n%n", runtimeKey);
+            printHelp();
+            return 1;
         }
 
-        return Arrays.stream(container.getNames())
-                .findFirst()
-                .orElse(UNKNOWN);
+        if (args.length == 0) {
+            System.err.printf("Missing command for runtime %s%n%n", runtimeKey);
+            printHelp();
+            return 1;
+        }
+
+        String command = args[0].trim().toLowerCase();
+        return switch (command) {
+            case LIST -> {
+                listSources(service);
+                yield 0;
+            }
+            case TAIL_ALL -> {
+                tailAllSources(service);
+                yield 0;
+            }
+            case TAIL_ONE -> {
+                if (args.length < 2) {
+                    System.err.println("Missing source id for tail-one command.");
+                    printHelp();
+                    yield 1;
+                }
+                tailOneSource(service, args[1]);
+                yield 0;
+            }
+            case HELP, HELP_2, H_COMMAND -> {
+                printHelp();
+                yield 0;
+            }
+            default -> {
+                System.err.printf("Unknown command: %s%n%n", command);
+                printHelp();
+                yield 1;
+            }
+        };
     }
 
-    private String safe(String value) {
-        return StringUtils.isEmpty(value) ? UNKNOWN : value;
+    private void listSources(LogStreamingService service) {
+        List<LogSource> sources = service.listRunningSources();
+
+        if (sources.isEmpty()) {
+            System.out.println("No running sources found.");
+            return;
+        }
+
+        System.out.printf("%-70s %-30s %-25s%n", "SOURCE ID", "NAME", "STATUS");
+        System.out.println("----------------------------------------------------------------------------------------------------------------------------------------");
+
+        sources.forEach(source -> System.out.printf(
+                "%-70s %-30s %-25s%n",
+                source.id(),
+                shorten(source.name(), 30),
+                shorten(source.status(), 25)
+        ));
+    }
+
+    private void tailAllSources(LogStreamingService service) {
+        List<LogSource> sources = service.listRunningSources();
+        if (sources.isEmpty()) {
+            System.out.println("No running sources found.");
+            return;
+        }
+
+        List<Disposable> subscriptions = sources.stream()
+                .map(LogSource::id)
+                .peek(sourceId -> System.out.printf("Current source id: %s%n", sourceId))
+                .map(service::startStream)
+                .toList();
+
+        System.out.printf("Started tailing %d running sources.%n", subscriptions.size());
+        if (isShellSessionActive()) {
+            registerBackgroundJob("tail-all", subscriptions);
+            return;
+        }
+
+        try {
+            blockUntilInterrupted(subscriptions);
+        } catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for sources to stream", e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void tailOneSource(LogStreamingService service, String sourceId) {
+        System.out.printf("Started tailing source %s%n", sourceId);
+        Disposable sourceStream = service.startStream(sourceId);
+        if (isShellSessionActive()) {
+            registerBackgroundJob("tail-one " + sourceId, List.of(sourceStream));
+            return;
+        }
+
+        try {
+            blockUntilInterrupted(List.of(sourceStream));
+        } catch (InterruptedException e) {
+            log.error("Interrupted while waiting for source stream to start", e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private Map<String, LogStreamingService> indexServices(List<LogStreamingService> services) {
+        Map<String, LogStreamingService> indexed = new LinkedHashMap<>();
+        for (LogStreamingService service : services) {
+            for (String key : service.runtimeKeys()) {
+                String normalized = key.trim().toLowerCase();
+                if (StringUtils.isBlank(normalized)) {
+                    continue;
+                }
+                indexed.put(normalized, service);
+            }
+        }
+        return indexed;
+    }
+
+    private String shorten(String value, int maxLength) {
+        String safeValue = StringUtils.isBlank(value) ? UNKNOWN : value;
+        if (safeValue.length() <= maxLength) {
+            return safeValue;
+        }
+        return safeValue.substring(0, maxLength - 3) + "...";
     }
 
     protected void exit(int code) {
         System.exit(code);
+    }
+
+    protected boolean isShellSessionActive() {
+        return shellSessionActive;
+    }
+
+    protected void registerBackgroundJob(String description, List<Disposable> subscriptions) {
+        int jobId = backgroundJobSequence.incrementAndGet();
+        BackgroundJob job = new BackgroundJob(jobId, description, subscriptions);
+        backgroundJobs.put(jobId, job);
+        System.out.printf("[%d] Running in background: %s%n", jobId, description);
+    }
+
+    protected void disposeBackgroundJobs() {
+        Set<LogStreamingService> servicesToStop = new LinkedHashSet<>();
+        List<BackgroundJob> jobsToDispose = new ArrayList<>(backgroundJobs.values());
+
+        jobsToDispose.forEach(job -> job.subscriptions().forEach(Disposable::dispose));
+        backgroundJobs.clear();
+
+        servicesToStop.addAll(servicesByRuntime.values());
+        servicesToStop.forEach(LogStreamingService::stopAllStreams);
+    }
+
+    private record BackgroundJob(int id, String description, List<Disposable> subscriptions) {
     }
 
 }

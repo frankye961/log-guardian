@@ -1,16 +1,35 @@
 spring:
   application:
     name: logguardian
+  autoconfigure:
+    exclude: ${SPRING_AUTOCONFIGURE_EXCLUDE:org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration,org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration,org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration,org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration,org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration,org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration}
   main:
-    web-application-type: none
+    web-application-type: ${SPRING_MAIN_WEB_APPLICATION_TYPE:none}
   ai:
+    chat:
+      client:
+        enabled: ${SPRING_AI_CHAT_CLIENT_ENABLED:false}
     model:
       chat: ${MODEL_AI:}
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
-          model: gpt-5-mini
+          model: ${OPENAI_MODEL:gpt-5-mini}
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/logguardian}
+      database: ${MONGODB_DATABASE:logguardian}
+      auto-index-creation: ${MONGODB_AUTO_INDEX_CREATION:true}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:5s}
+      repositories:
+        enabled: ${REDIS_REPOSITORIES_ENABLED:false}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:2525}
@@ -30,7 +49,7 @@ spring:
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:500000}
 
 logguardian:
-  mode: cli
+  mode: ${LOGGUARDIAN_MODE:cli}
   ingest:
     multiline:
       idle-flush-ms: ${LOGGUARDIAN_MULTILINE_IDLE_FLUSH_MS:800}
@@ -70,6 +89,10 @@ logguardian:
 
 docker:
   host: ${DOCKER_HOST:}
+
+kubernetes:
+  namespace: ${KUBERNETES_NAMESPACE:default}
+  all-namespaces: ${KUBERNETES_ALL_NAMESPACES:false}
 
 logging:
   level:

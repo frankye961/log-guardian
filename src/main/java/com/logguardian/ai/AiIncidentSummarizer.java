@@ -4,6 +4,7 @@ import com.logguardian.ai.model.IncidentSeverity;
 import com.logguardian.ai.model.IncidentSummary;
 import com.logguardian.ai.model.IncidentSummaryRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -18,14 +19,25 @@ public class AiIncidentSummarizer {
     private final String promptTemplate;
 
     public AiIncidentSummarizer(
-            ChatClient.Builder builder,
+            ObjectProvider<ChatClient.Builder> builderProvider,
             @Value("${logguardian.ai.prompt-template}") String promptTemplate
     ) {
-        this.chatClient = builder.build();
+        ChatClient.Builder builder = builderProvider.getIfAvailable();
+        this.chatClient = builder == null ? null : builder.build();
         this.promptTemplate = promptTemplate;
     }
 
     public IncidentSummary summarize(IncidentSummaryRequest request) {
+        if (chatClient == null) {
+            return new IncidentSummary(
+                    "AI unavailable",
+                    "No chat model is configured for incident summarization.",
+                    "Missing ChatModel bean",
+                    "Configure Spring AI model credentials or disable AI summarization.",
+                    IncidentSeverity.UNKNOWN
+            );
+        }
+
         String prompt = buildPrompt(request);
         log.info("Sending AI prompt for fingerprint={} count={}", request.fingerprint(), request.count());
 
@@ -105,5 +117,9 @@ public class AiIncidentSummarizer {
                 "See AI analysis",
                 IncidentSeverity.UNKNOWN
         );
+    }
+
+    public boolean isAvailable() {
+        return chatClient != null;
     }
 }

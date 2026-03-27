@@ -17,4 +17,8 @@ public final class Command {
     public static final String UNKNOWN = "unknown";
     public static final String EXIT = "exit";
     public static final String SHELL_COMMAND = "shell";
+    public static final String ACKNOWLEDGED = "ack";
+    public static final String CLOSED = "closed";
+    public static final String SUPPRESSED = "suppress";
+    public static final String RESOLVED  = "resolved";
 }

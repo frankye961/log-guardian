@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogGuardian Control Room</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="orb orb-a"></div>
+<div class="orb orb-b"></div>
+<main class="app-shell">
+    <section class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Realtime Detection Console</p>
+            <h1>LogGuardian Control Room</h1>
+            <p class="hero-text">
+                Start and supervise Docker and Kubernetes tail jobs, keep an eye on live incident pressure,
+                and drive the existing pipeline from a browser instead of a terminal.
+            </p>
+        </div>
+        <div class="hero-actions">
+            <button id="refreshButton" class="button button-primary">Refresh view</button>
+            <span id="lastUpdated" class="timestamp">Waiting for first sync</span>
+        </div>
+    </section>
+
+    <section class="metrics-grid" id="metricsGrid"></section>
+
+    <section class="panel-grid">
+        <article class="panel panel-runtimes">
+            <div class="panel-head">
+                <div>
+                    <p class="panel-kicker">Runtimes</p>
+                    <h2>Sources and launch controls</h2>
+                </div>
+            </div>
+            <div id="runtimePanels" class="runtime-panels"></div>
+        </article>
+
+        <article class="panel panel-jobs">
+            <div class="panel-head">
+                <div>
+                    <p class="panel-kicker">Background work</p>
+                    <h2>Active tail jobs</h2>
+                </div>
+            </div>
+            <div id="jobsList" class="jobs-list"></div>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <p class="panel-kicker">Recent activity</p>
+                <h2>Latest incidents</h2>
+            </div>
+        </div>
+        <div id="incidentGrid" class="incident-grid"></div>
+    </section>
+
+    <section id="toast" class="toast hidden"></section>
+</main>
+<script src="/app.js" defer></script>
+</body>
+</html>

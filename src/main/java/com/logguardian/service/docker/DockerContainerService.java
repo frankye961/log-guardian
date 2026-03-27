@@ -5,34 +5,47 @@ import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.Frame;
 import com.logguardian.model.LogLine;
+import com.logguardian.service.runtime.LogPipelineService;
+import com.logguardian.service.runtime.LogSource;
+import com.logguardian.service.runtime.LogStreamingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.logguardian.mapper.LogLineMapper.map;
 import static org.apache.hc.core5.io.Closer.closeQuietly;
 
 @Slf4j
 @Service
-public class DockerContainerService {
+public class DockerContainerService implements LogStreamingService {
 
     private final DockerClient client;
-    private final DockerLogPipelineService dockerLogPipelineService;
+    private final LogPipelineService logPipelineService;
     private final ConcurrentMap<String, Disposable> activeContainers = new ConcurrentHashMap<>();
 
-    public DockerContainerService(DockerClient client, DockerLogPipelineService dockerLogPipelineService) {
+    public DockerContainerService(DockerClient client, LogPipelineService logPipelineService) {
         this.client = client;
-        this.dockerLogPipelineService = dockerLogPipelineService;
+        this.logPipelineService = logPipelineService;
     }
 
-    public List<Container> getRunningContainerList() {
+    @Override
+    public Set<String> runtimeKeys() {
+        return Set.of("docker");
+    }
+
+    @Override
+    public List<LogSource> listRunningSources() {
         try {
-            return getRunningContainers();
+            return getRunningContainers().stream()
+                    .map(this::toSource)
+                    .toList();
         } catch (Exception e) {
             log.error("Docker listContainers failed. Problem: ", e);
             throw new IllegalStateException("Failed to list running Docker containers", e);
@@ -40,20 +53,23 @@ public class DockerContainerService {
     }
 
 
+    @Override
     public Disposable startStream(String containerId) {
-        Disposable currentStream = activeContainers.get(containerId);
-        if (currentStream != null && !currentStream.isDisposed()) {
-            log.info("Stream already active for container {}", containerId);
-            return currentStream;
-        }
+        return activeContainers.compute(containerId, (id, currentStream) -> {
+            if (currentStream != null && !currentStream.isDisposed()) {
+                log.info("Stream already active for container {}", containerId);
+                return currentStream;
+            }
 
-        Disposable subscription = dockerLogPipelineService.process(containerId, streamLogs(containerId))
-                .doOnError(error -> log.error("Stream failed for container {}", containerId, error))
-                .doFinally(signal -> activeContainers.remove(containerId))
-                .subscribe();
-
-        activeContainers.put(containerId, subscription);
-        return subscription;
+            AtomicReference<Disposable> createdSubscription = new AtomicReference<>();
+            Disposable subscription = logPipelineService.process(containerId, streamLogs(containerId))
+                    .doOnError(error -> log.error("Stream failed for container {}", containerId, error))
+                    .doFinally(signal -> activeContainers.computeIfPresent(containerId, (key, active) ->
+                            active == createdSubscription.get() ? null : active))
+                    .subscribe();
+            createdSubscription.set(subscription);
+            return subscription;
+        });
     }
 
     /**
@@ -111,8 +127,28 @@ public class DockerContainerService {
         }
     }
 
+    @Override
     public void stopAllStreams() {
         activeContainers.values().forEach(Disposable::dispose);
         activeContainers.clear();
+    }
+
+    private LogSource toSource(Container container) {
+        return new LogSource(
+                safe(container.getId()),
+                extractName(container),
+                safe(container.getStatus())
+        );
+    }
+
+    private String extractName(Container container) {
+        if (container.getNames() == null || container.getNames().length == 0) {
+            return "unknown";
+        }
+        return container.getNames()[0];
+    }
+
+    private String safe(String value) {
+        return value == null || value.isBlank() ? "unknown" : value;
     }
 }

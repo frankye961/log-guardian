@@ -1,7 +1,10 @@
 package com.logguardian.ai.model;
 
+import lombok.Builder;
+
 import static com.logguardian.ai.model.IncidentSeverity.UNKNOWN;
 
+@Builder
 public record IncidentSummary(
         String title,
         String summary,

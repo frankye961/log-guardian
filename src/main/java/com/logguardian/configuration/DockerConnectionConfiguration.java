@@ -6,9 +6,11 @@ import com.github.dockerjava.core.DockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 public class DockerConnectionConfiguration {
@@ -17,10 +19,14 @@ public class DockerConnectionConfiguration {
     private String dockerHost;
 
     @Bean
+    @Lazy
     public DockerClient dockerClient() {
-        DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost(dockerHost)
-                .build();
+        DefaultDockerClientConfig.Builder builder = DefaultDockerClientConfig.createDefaultConfigBuilder();
+        if (StringUtils.isNotBlank(dockerHost)) {
+            builder.withDockerHost(dockerHost);
+        }
+
+        DockerClientConfig config = builder.build();
         DockerHttpClient httpClient = new OkDockerHttpClient.Builder()
                 .dockerHost(config.getDockerHost())
                 .build();

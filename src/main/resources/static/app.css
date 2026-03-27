@@ -1,0 +1,456 @@
+:root {
+    --bg: #08111f;
+    --bg-soft: rgba(12, 23, 41, 0.78);
+    --panel: rgba(10, 20, 37, 0.86);
+    --panel-strong: rgba(15, 30, 56, 0.95);
+    --line: rgba(151, 184, 255, 0.22);
+    --text: #edf3ff;
+    --muted: #9cb0cf;
+    --accent: #68e1fd;
+    --accent-strong: #2ed3b7;
+    --warn: #ffb454;
+    --danger: #ff6f91;
+    --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+* {
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Space Grotesk", sans-serif;
+    background:
+        radial-gradient(circle at top left, rgba(104, 225, 253, 0.17), transparent 28%),
+        radial-gradient(circle at 85% 20%, rgba(255, 180, 84, 0.16), transparent 22%),
+        linear-gradient(145deg, #050a14 0%, #08111f 42%, #0c1930 100%);
+    color: var(--text);
+}
+
+.orb {
+    position: fixed;
+    border-radius: 999px;
+    filter: blur(22px);
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.orb-a {
+    width: 16rem;
+    height: 16rem;
+    top: 5rem;
+    right: 8rem;
+    background: rgba(104, 225, 253, 0.18);
+}
+
+.orb-b {
+    width: 11rem;
+    height: 11rem;
+    bottom: 7rem;
+    left: 6rem;
+    background: rgba(46, 211, 183, 0.16);
+}
+
+.app-shell {
+    position: relative;
+    z-index: 1;
+    width: min(1320px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 4rem;
+}
+
+.hero,
+.panel,
+.metric-card {
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+}
+
+.hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    align-items: end;
+    padding: 2rem;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: linear-gradient(135deg, rgba(9, 20, 36, 0.95), rgba(20, 36, 63, 0.82));
+}
+
+.eyebrow,
+.panel-kicker,
+.meta-label {
+    margin: 0 0 0.5rem;
+    color: var(--accent);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+    margin: 0;
+}
+
+h1 {
+    font-size: clamp(2.6rem, 5vw, 4.8rem);
+    line-height: 0.95;
+    max-width: 12ch;
+}
+
+.hero-text {
+    margin-top: 1rem;
+    max-width: 60ch;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.8rem;
+}
+
+.button {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.9rem 1.2rem;
+    font: inherit;
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.button:hover {
+    transform: translateY(-1px);
+}
+
+.button-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: #04111f;
+    font-weight: 700;
+}
+
+.button-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border: 1px solid var(--line);
+}
+
+.button-danger {
+    background: rgba(255, 111, 145, 0.12);
+    color: #ffd6e0;
+    border: 1px solid rgba(255, 111, 145, 0.3);
+}
+
+.timestamp {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.metrics-grid,
+.panel-grid,
+.runtime-panels,
+.incident-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.metrics-grid {
+    margin-top: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-card,
+.panel,
+.runtime-card,
+.job-card,
+.incident-card {
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--panel);
+}
+
+.metric-card {
+    padding: 1.3rem;
+}
+
+.metric-card strong {
+    display: block;
+    margin-top: 0.55rem;
+    font-size: 2rem;
+}
+
+.metric-card span {
+    color: var(--muted);
+}
+
+.panel-grid {
+    margin-top: 1rem;
+    grid-template-columns: 1.6fr 1fr;
+}
+
+.panel {
+    padding: 1.25rem;
+}
+
+.panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.runtime-card,
+.job-card,
+.incident-card {
+    padding: 1rem;
+    background: linear-gradient(180deg, rgba(15, 28, 51, 0.92), rgba(8, 16, 30, 0.9));
+}
+
+.runtime-card-head,
+.job-card-head,
+.incident-card-head,
+.source-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+}
+
+.runtime-card-head {
+    margin-bottom: 1rem;
+}
+
+.runtime-actions,
+.job-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.source-list,
+.jobs-list {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.source-row {
+    padding-top: 0.8rem;
+    border-top: 1px solid rgba(151, 184, 255, 0.14);
+}
+
+.source-row:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.source-main {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.mono {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.88rem;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.badge-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.7rem;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2rem;
+    max-width: 100%;
+    padding: 0.42rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+    text-align: center;
+}
+
+.badge.mono {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.badge-running,
+.badge-active,
+.badge-open,
+.badge-high {
+    background: rgba(46, 211, 183, 0.13);
+    color: #9ef3e0;
+}
+
+.badge-medium,
+.badge-tailing {
+    background: rgba(255, 180, 84, 0.14);
+    color: #ffd8a1;
+}
+
+.badge-low,
+.badge-stopped,
+.badge-resolved,
+.badge-closed {
+    background: rgba(104, 225, 253, 0.14);
+    color: #adeefc;
+}
+
+.badge-unknown,
+.badge-error,
+.badge-suppressed,
+.badge-regressed {
+    background: rgba(255, 111, 145, 0.14);
+    color: #ffc6d3;
+}
+
+.badge-acknowledged {
+    background: rgba(255, 180, 84, 0.14);
+    color: #ffd8a1;
+}
+
+.incident-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.incident-card p,
+.job-card p {
+    margin-top: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.incident-card-selected {
+    border-color: rgba(104, 225, 253, 0.5);
+    box-shadow: 0 0 0 1px rgba(104, 225, 253, 0.18), var(--shadow);
+}
+
+.incident-action-panel {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(151, 184, 255, 0.14);
+}
+
+.incident-field {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.incident-select,
+.incident-note {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid rgba(151, 184, 255, 0.2);
+    background: rgba(7, 15, 29, 0.86);
+    color: var(--text);
+    padding: 0.85rem 0.95rem;
+    font: inherit;
+}
+
+.incident-note {
+    resize: vertical;
+    min-height: 5.5rem;
+}
+
+.runtime-card strong,
+.job-card h3,
+.incident-card h3,
+.source-main strong {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.empty-state {
+    padding: 1rem;
+    border: 1px dashed rgba(151, 184, 255, 0.2);
+    border-radius: 18px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.toast {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 18px;
+    background: rgba(9, 18, 34, 0.96);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+}
+
+.hidden {
+    display: none;
+}
+
+@media (max-width: 1080px) {
+    .metrics-grid,
+    .incident-grid,
+    .panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .app-shell {
+        width: min(100% - 1rem, 1320px);
+        padding-top: 1rem;
+    }
+
+    .hero {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .hero-actions {
+        align-items: flex-start;
+    }
+
+    .runtime-card-head,
+    .job-card-head,
+    .incident-card-head,
+    .source-row {
+        flex-direction: column;
+    }
+
+    .runtime-actions,
+    .job-actions,
+    .badge-row {
+        width: 100%;
+    }
+
+    .button {
+        width: 100%;
+        justify-content: center;
+    }
+}
