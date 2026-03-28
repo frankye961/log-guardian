@@ -13,7 +13,7 @@
 
     <groupId>com.logguardian</groupId>
     <artifactId>logguardian</artifactId>
-    <version>1.0.6</version>
+    <version>1.0.7-SNAPSHOT</version>
     <name>LogGuardian</name>
     <description>Real-time log anomaly detection with AI-assisted incident analysis</description>
 
