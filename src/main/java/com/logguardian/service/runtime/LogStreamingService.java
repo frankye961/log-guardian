@@ -14,4 +14,8 @@ public interface LogStreamingService {
     Disposable startStream(String sourceId);
 
     void stopAllStreams();
+    void acknowledgeIncident(String incidentId, String fingerprint, String sourceId);
+    void closeIncident(String incidentId);
+    void suppressIncident(String incidentId);
+    void resolveIncident(String incidentId);
 }

@@ -11,6 +11,7 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -22,6 +23,10 @@ public class IncidentPersistence {
 
     public IncidentDocument findIncident(String fingerprint, String sourceId) {
         return incidentRepository.findByFingerprintAndSourceId(fingerprint, sourceId);
+    }
+
+    public Optional<IncidentDocument> findIncidentById(String incidentId) {
+        return incidentRepository.findById(incidentId);
     }
 
     @CachePut(value = "incident", key = "#incidentDocument.fingerprint + ':' + #incidentDocument.sourceId")

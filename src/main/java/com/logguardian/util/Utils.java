@@ -1,6 +1,7 @@
 package com.logguardian.util;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import org.apache.commons.lang3.StringUtils;
 
 public final class Utils {
 
@@ -8,7 +9,7 @@ public final class Utils {
     }
 
     public static boolean checkIfJson(String message) {
-        if (message == null) {
+        if (StringUtils.isEmpty(message)) {
             return false;
         }
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=LogGuardian Spring Boot application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/logguardian
+EnvironmentFile=-/etc/logguardian/logguardian.env
+ExecStart=/opt/logguardian/bin/start-logguardian.sh
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

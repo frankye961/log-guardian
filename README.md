@@ -419,6 +419,15 @@ Typical installation flow on a Linux machine:
 5. Run `sudo systemctl daemon-reload`
 6. Run `sudo systemctl enable --now logguardian`
 
+If you are building manually, do not `cd target` before packaging. Build first from the project root:
+
+```bash
+mvn clean package
+find target -maxdepth 1 -type f -name '*.jar' ! -name '*.jar.original'
+```
+
+`target/` is created by Maven, so `find: 'target': No such file or directory` means the build did not run yet or it failed.
+
 The CLI is still available locally and on deployed machines by overriding the environment, for example:
 
 ```bash

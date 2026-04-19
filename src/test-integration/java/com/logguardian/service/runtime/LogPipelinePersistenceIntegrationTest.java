@@ -19,9 +19,12 @@ import com.logguardian.persistance.IncidentPersistence;
 import com.logguardian.persistance.interfaces.IncidentEventRepository;
 import com.logguardian.persistance.interfaces.IncidentRepository;
 import com.logguardian.persistance.pojo.IncidentDocument;
+import com.logguardian.persistance.pojo.IncidentEventDocument;
+import com.logguardian.persistance.pojo.IncidentEventType;
 import com.logguardian.persistance.pojo.IncidentStatus;
 import com.logguardian.service.email.EmailSenderService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.mapstruct.factory.Mappers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -39,8 +42,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,6 +81,79 @@ class LogPipelinePersistenceIntegrationTest {
 
     @Autowired
     private IncidentRepository incidentRepository;
+
+    @Autowired
+    private IncidentEventRepository incidentEventRepository;
+
+    @BeforeEach
+    void resetMocks() {
+        reset(aggregator, stringParser, fingerPrintGenerator, counter, detector, summarizer, incidentRepository, incidentEventRepository);
+    }
+
+    @Test
+    void createsNewIncidentAndPersistsCreatedEvent() {
+        Instant now = Instant.parse("2026-03-24T15:00:00Z");
+        LogEntry aggregatedEntry = new LogEntry("container-42", now, "2026-03-24 15:00:00 ERROR timeout");
+        LogEvent parsedEvent = new LogEvent(
+                "DOCKER",
+                "container-42",
+                "payments-api",
+                now,
+                now,
+                LogLevel.ERROR,
+                "Timeout while calling payments provider",
+                "fp-timeout-123",
+                Map.of()
+        );
+        AnomalyEvent anomaly = new AnomalyEvent(
+                "fp-timeout-123",
+                LogLevel.ERROR,
+                "container-42",
+                "payments-api",
+                now,
+                57,
+                "Timeout while calling payments provider"
+        );
+        IncidentSummary summary = new IncidentSummary(
+                "Payment authorization timeout spike",
+                "Repeated payment authorization requests are timing out.",
+                "The external payments provider is degraded.",
+                "Check provider status and retry amplification.",
+                IncidentSeverity.HIGH
+        );
+
+        when(aggregator.transform(any())).thenReturn(Flux.just(aggregatedEntry));
+        when(stringParser.parse(aggregatedEntry)).thenReturn(parsedEvent);
+        when(fingerPrintGenerator.generateFingerprint(parsedEvent)).thenReturn(parsedEvent);
+        when(counter.countFingerprint(parsedEvent)).thenReturn(57);
+        when(detector.detectAnomaly(any())).thenReturn(Optional.of(anomaly));
+        when(summarizer.summarize(any())).thenReturn(summary);
+        when(incidentRepository.findByFingerprintAndSourceId("fp-timeout-123", "container-42")).thenReturn(null);
+        when(incidentRepository.save(any(IncidentDocument.class))).thenAnswer(invocation -> {
+            IncidentDocument document = invocation.getArgument(0);
+            document.setId("incident-1");
+            return document;
+        });
+        when(incidentEventRepository.save(any(IncidentEventDocument.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        StepVerifier.create(service.process(
+                        "container-42",
+                        Flux.just(LogLine.builder()
+                                .containerId("container-42")
+                                .receivedAt(now)
+                                .line("2026-03-24 15:00:00 ERROR timeout")
+                                .build())
+                ))
+                .expectNext(summary)
+                .verifyComplete();
+
+        verify(incidentEventRepository).save(argThat(event ->
+                event.getType() == IncidentEventType.CREATED
+                        && "fp-timeout-123".equals(event.getFingerprint())
+                        && "container-42".equals(event.getSourceId())
+        ));
+    }
 
     @Test
     void updatesExistingIncidentWhenSameFingerprintAndSourceReappears() {
@@ -145,7 +223,7 @@ class LogPipelinePersistenceIntegrationTest {
         assertThat(existing.getTotalOccurrences()).isEqualTo(67);
         assertThat(existing.getLastWindowCount()).isEqualTo(57);
         assertThat(existing.getSeverity()).isEqualTo(IncidentSeverity.HIGH);
-        verify(incidentRepository).findByFingerprintAndSourceId("fp-timeout-123", "container-42");
+        verify(incidentRepository, times(1)).findByFingerprintAndSourceId("fp-timeout-123", "container-42");
         verify(incidentRepository, times(1)).save(eq(existing));
     }
 

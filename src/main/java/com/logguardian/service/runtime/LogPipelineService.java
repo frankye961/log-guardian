@@ -25,12 +25,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 
+import static com.logguardian.service.runtime.IncidentStateTransitions.apply;
 import static com.logguardian.util.Utils.checkIfJson;
 import static com.logguardian.util.Utils.generateIncidentId;
 
@@ -102,15 +104,9 @@ public class LogPipelineService {
             IncidentDocument incident = mapper.toIncidentDocument(anomaly, summary);
             String incidentId = generateIncidentId(anomaly.fingerprint(),  anomaly.sourceId());
             incident.setStatus(IncidentStatus.OPEN);
-            mapper.toIncidentEventDocument(incidentId,
-                    anomaly,
-                    summary,
-                    IncidentEventType.CREATED,
-                    Instant.now(),
-                    "none",
-                    summary.suggestedActions()
-                    );
-            return incidentPersistence.saveIncident(incident);
+            IncidentDocument savedIncident = incidentPersistence.saveIncident(incident);
+            incidentPersistence.saveIncidentEvent(mapper.toCreatedIncidentEventDocument(incidentId, anomaly, summary));
+            return savedIncident;
         }
 
         mapper.updateIncidentDocument(existing, anomaly, summary);
@@ -152,6 +148,39 @@ public class LogPipelineService {
         }
         return "AI unavailable".equalsIgnoreCase(summary.title())
                 && "Missing ChatModel bean".equalsIgnoreCase(summary.probableCause());
+    }
+
+
+    public void acknowledgeIncident(String incidentId, String fingerprint,  String sourceId) {
+        IncidentDocument incident = incidentPersistence.findIncidentById(incidentId)
+                .orElseGet(() -> incidentPersistence.findIncident(fingerprint, sourceId));
+        if (incident == null) {
+            throw new IllegalStateException("Incident not found for id " + incidentId);
+        }
+        updateIncidentState(incident, IncidentEventType.ACKNOWLEDGED, "runtime", null);
+    }
+
+    public void closeIncident(String incidentId) {
+        updateIncidentState(findIncidentById(incidentId), IncidentEventType.CLOSED, "runtime", null);
+    }
+
+    public void suppressIncident(String incidentId) {
+        updateIncidentState(findIncidentById(incidentId), IncidentEventType.SUPPRESSED, "runtime", null);
+    }
+
+    public void resolveIncident(String incidentId) {
+        updateIncidentState(findIncidentById(incidentId), IncidentEventType.RESOLVED, "runtime", null);
+    }
+
+    private void updateIncidentState(IncidentDocument incident, IncidentEventType type, String actor, String note) {
+        apply(incident, type, Instant.now());
+        IncidentDocument savedIncident = incidentPersistence.saveIncident(incident);
+        incidentPersistence.saveIncidentEvent(mapper.toIncidentStateEventDocument(savedIncident, type, actor, note));
+    }
+
+    private IncidentDocument findIncidentById(String incidentId) {
+        return incidentPersistence.findIncidentById(incidentId)
+                .orElseThrow(() -> new IllegalStateException("Incident not found for id " + incidentId));
     }
 
 

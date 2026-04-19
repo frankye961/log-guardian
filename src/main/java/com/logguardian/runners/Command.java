@@ -21,4 +21,5 @@ public final class Command {
     public static final String CLOSED = "closed";
     public static final String SUPPRESSED = "suppress";
     public static final String RESOLVED  = "resolved";
+    public static final String OPEN = "OPEN";
 }

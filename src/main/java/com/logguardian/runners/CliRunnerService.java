@@ -163,6 +163,15 @@ public class CliRunnerService implements CommandLineRunner {
 
         String command = args[0].trim().toLowerCase();
         return switch (command) {
+            case ACKNOWLEDGED -> {
+                if(args.length < 3) {
+                    System.err.println("Missing arguments for ack command.");
+                    printHelp();
+                    yield 1;
+                }
+                acknowledge(service, args[1], args[2], args[3]);
+                yield 0;
+            }
             case LIST -> {
                 listSources(service);
                 yield 0;
@@ -190,6 +199,10 @@ public class CliRunnerService implements CommandLineRunner {
                 yield 1;
             }
         };
+    }
+
+    private void acknowledge(LogStreamingService service, String...args) {
+        service.acknowledgeIncident(args[0], args[1],  args[2]);
     }
 
     private void listSources(LogStreamingService service) {

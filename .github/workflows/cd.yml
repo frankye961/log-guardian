@@ -53,6 +53,9 @@ jobs:
             echo "IS_SNAPSHOT=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Build application jar
+        run: mvn -B -DskipTests package
+
       - name: Publish Maven packages
         if: env.IS_SNAPSHOT != 'true'
         run: mvn -B -DskipTests deploy

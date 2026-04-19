@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.logguardian.service.runtime.IncidentStateTransitions.apply;
+import static com.logguardian.runners.Command.*;
+
 @Service
 public class DashboardService {
 
@@ -84,7 +87,7 @@ public class DashboardService {
         List<TailJobView> activeJobs = listJobs();
         List<IncidentCard> incidents = recentIncidents(8);
         long openIncidents = incidents.stream()
-                .filter(incident -> "OPEN".equalsIgnoreCase(incident.status()))
+                .filter(incident -> OPEN.equalsIgnoreCase(incident.status()))
                 .count();
 
         return new DashboardSnapshot(
@@ -131,7 +134,7 @@ public class DashboardService {
                 .map(sourceId -> runtimeService(runtime).startStream(sourceId))
                 .toList();
 
-        TailJob job = registerJob(runtime, "tail-all", sourceIds, subscriptions);
+        TailJob job = registerJob(runtime, TAIL_ALL, sourceIds, subscriptions);
         return toView(job);
     }
 
@@ -147,7 +150,7 @@ public class DashboardService {
         }
 
         Disposable subscription = runtimeService(runtime).startStream(sourceId);
-        TailJob job = registerJob(runtime, "tail-one", List.of(sourceId), List.of(subscription));
+        TailJob job = registerJob(runtime, TAIL_ONE, List.of(sourceId), List.of(subscription));
         return toView(job);
     }
 
@@ -178,7 +181,7 @@ public class DashboardService {
         IncidentDocument incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new IllegalStateException("Incident not found: " + incidentId));
 
-        applyIncidentState(incident, type, Instant.now());
+        apply(incident, type, Instant.now());
         //TODO In case the incident is CLOSED state, has to be deleted from db and cache
         IncidentDocument savedIncident = incidentPersistence.saveIncident(incident);
         incidentPersistence.saveIncidentEvent(
@@ -283,33 +286,6 @@ public class DashboardService {
                     .toList();
         } catch (Exception exception) {
             return incidentCache.cards();
-        }
-    }
-
-    private void applyIncidentState(IncidentDocument incident, IncidentEventType type, Instant now) {
-        switch (type) {
-            case ACKNOWLEDGED -> {
-                incident.setStatus(IncidentStatus.ACKNOWLEDGED);
-                if (incident.getAcknowledgedAt() == null) {
-                    incident.setAcknowledgedAt(now);
-                }
-            }
-            case SUPPRESSED -> incident.setStatus(IncidentStatus.SUPPRESSED);
-            case RESOLVED -> {
-                incident.setStatus(IncidentStatus.RESOLVED);
-                incident.setResolvedAt(now);
-            }
-            case REGRESSED -> {
-                incident.setStatus(IncidentStatus.REGRESSED);
-                incident.setResolvedAt(null);
-            }
-            case CLOSED -> {
-                incident.setStatus(IncidentStatus.CLOSED);
-                if (incident.getResolvedAt() == null) {
-                    incident.setResolvedAt(now);
-                }
-            }
-            default -> throw new IllegalArgumentException("Unsupported GUI incident event type: " + type);
         }
     }
 

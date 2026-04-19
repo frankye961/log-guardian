@@ -56,4 +56,6 @@ public class IncidentEventDocument {
     private String actor;
 
     private String note;
+
+    private String status;
 }

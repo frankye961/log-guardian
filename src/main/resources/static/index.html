@@ -6,60 +6,108 @@
     <title>LogGuardian Control Room</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<div class="orb orb-a"></div>
-<div class="orb orb-b"></div>
+<div class="backdrop backdrop-grid"></div>
+<div class="backdrop backdrop-glow backdrop-glow-a"></div>
+<div class="backdrop backdrop-glow backdrop-glow-b"></div>
+
 <main class="app-shell">
-    <section class="hero">
+    <header class="hero">
         <div class="hero-copy">
-            <p class="eyebrow">Realtime Detection Console</p>
+            <p class="eyebrow">Operational Nerve Center</p>
             <h1>LogGuardian Control Room</h1>
             <p class="hero-text">
-                Start and supervise Docker and Kubernetes tail jobs, keep an eye on live incident pressure,
-                and drive the existing pipeline from a browser instead of a terminal.
+                Watch runtime pressure, launch streams, and drive incident transitions from one high-signal surface.
             </p>
         </div>
-        <div class="hero-actions">
+        <div class="hero-side">
+            <div class="live-chip">
+                <span class="live-dot"></span>
+                <span>Streaming telemetry</span>
+            </div>
             <button id="refreshButton" class="button button-primary">Refresh view</button>
             <span id="lastUpdated" class="timestamp">Waiting for first sync</span>
         </div>
-    </section>
+    </header>
 
-    <section class="metrics-grid" id="metricsGrid"></section>
+    <section id="metricsGrid" class="metrics-grid"></section>
 
-    <section class="panel-grid">
-        <article class="panel panel-runtimes">
-            <div class="panel-head">
-                <div>
-                    <p class="panel-kicker">Runtimes</p>
-                    <h2>Sources and launch controls</h2>
-                </div>
-            </div>
-            <div id="runtimePanels" class="runtime-panels"></div>
-        </article>
+    <section id="insightStrip" class="insight-strip"></section>
 
-        <article class="panel panel-jobs">
-            <div class="panel-head">
-                <div>
-                    <p class="panel-kicker">Background work</p>
-                    <h2>Active tail jobs</h2>
-                </div>
-            </div>
-            <div id="jobsList" class="jobs-list"></div>
-        </article>
-    </section>
-
-    <section class="panel">
-        <div class="panel-head">
+    <section class="control-deck panel">
+        <div class="panel-head compact-head">
             <div>
-                <p class="panel-kicker">Recent activity</p>
-                <h2>Latest incidents</h2>
+                <p class="panel-kicker">Smart Filters</p>
+                <h2>Focus the board</h2>
             </div>
         </div>
-        <div id="incidentGrid" class="incident-grid"></div>
+        <div class="control-row">
+            <label class="field search-field">
+                <span class="meta-label">Search runtime, source, or incident</span>
+                <input id="searchInput" class="input" type="search" placeholder="Search by container, pod, title, source ID">
+            </label>
+            <label class="field">
+                <span class="meta-label">Incident severity</span>
+                <select id="severityFilter" class="input">
+                    <option value="all">All severities</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                    <option value="UNKNOWN">Unknown</option>
+                </select>
+            </label>
+            <label class="field">
+                <span class="meta-label">Incident status</span>
+                <select id="statusFilter" class="input">
+                    <option value="all">All statuses</option>
+                    <option value="OPEN">Open</option>
+                    <option value="ACKNOWLEDGED">Acknowledged</option>
+                    <option value="SUPPRESSED">Suppressed</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="REGRESSED">Regressed</option>
+                    <option value="CLOSED">Closed</option>
+                </select>
+            </label>
+            <button id="resetFiltersButton" class="button button-secondary">Reset filters</button>
+        </div>
+        <div id="runtimeFilterBar" class="runtime-filter-bar"></div>
+    </section>
+
+    <section class="dashboard-grid">
+        <section class="stack">
+            <article class="panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="panel-kicker">Runtimes</p>
+                        <h2>Source orchestration</h2>
+                    </div>
+                </div>
+                <div id="runtimePanels" class="runtime-panels"></div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="panel-kicker">Background Work</p>
+                        <h2>Active tail jobs</h2>
+                    </div>
+                </div>
+                <div id="jobsList" class="jobs-list"></div>
+            </article>
+        </section>
+
+        <article class="panel panel-incidents">
+            <div class="panel-head">
+                <div>
+                    <p class="panel-kicker">Incident Radar</p>
+                    <h2>Prioritized incident queue</h2>
+                </div>
+            </div>
+            <div id="incidentGrid" class="incident-grid"></div>
+        </article>
     </section>
 
     <section id="toast" class="toast hidden"></section>

@@ -133,6 +133,27 @@ public class DockerContainerService implements LogStreamingService {
         activeContainers.clear();
     }
 
+    @Override
+    public void acknowledgeIncident(String incidentId, String fingerprint, String sourceId) {
+        logPipelineService.acknowledgeIncident(incidentId, fingerprint, sourceId);
+    }
+
+
+    @Override
+    public void closeIncident(String incidentId) {
+        logPipelineService.closeIncident(incidentId);
+    }
+
+    @Override
+    public void suppressIncident(String incidentId) {
+        logPipelineService.suppressIncident(incidentId);
+    }
+
+    @Override
+    public void resolveIncident(String incidentId) {
+        logPipelineService.resolveIncident(incidentId);
+    }
+
     private LogSource toSource(Container container) {
         return new LogSource(
                 safe(container.getId()),
